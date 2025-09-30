@@ -1,0 +1,25 @@
+Respuesta al punto c) del Ejercicio 2:
+
+¿Existe alguna diferencia entre ambas soluciones?
+
+Sí, existen diferencias fundamentales en términos de rendimiento, concurrencia y riesgo de interbloqueo (deadlock).
+
+1.  **Rendimiento y Concurrencia:**
+    *   **Soluciones Bloqueantes:** El proceso se detiene (se bloquea) en cada llamada a `MPI_Send` o `MPI_Recv` hasta que la operación se completa (p. ej., el mensaje se ha enviado o recibido). Esto limita la concurrencia. Un proceso no puede realizar otros cálculos mientras espera que termine una comunicación.
+    *   **Soluciones No-Bloqueantes:** Las llamadas `MPI_Isend` y `MPI_Irecv` inician la operación y retornan inmediatamente. Esto permite que el programa solape los cálculos con la comunicación. El proceso puede continuar ejecutando otras tareas y, más tarde, usar `MPI_Wait` o `MPI_Waitall` para asegurarse de que la comunicación ha finalizado. Esto generalmente conduce a un mejor rendimiento, ya que se aprovechan mejor los recursos de la CPU.
+
+2.  **Riesgo de Interbloqueo (Deadlock):**
+    *   **Soluciones Bloqueantes:** Son muy propensas a deadlocks si no se diseñan con cuidado. Un deadlock ocurre si, por ejemplo, todos los procesos intentan hacer un `MPI_Send` a otro y todos esperan un `MPI_Recv` que nunca se inicia. Esto fue un riesgo claro en la implementación de `My_Alltoall_blocking`, donde tuvimos que usar una estrategia de pares/impares para asegurar que siempre hubiera un proceso recibiendo mientras otro enviaba.
+    *   **Soluciones No-Bloqueantes:** Reducen drásticamente el riesgo de deadlock. Como las llamadas no se bloquean, un proceso puede publicar (iniciar) todas sus operaciones de envío y recepción a la vez. El sistema MPI se encarga de gestionarlas en segundo plano. La lógica del programa se simplifica, como se vio en `My_Alltoall_nonblocking`.
+
+
+¿Fue necesario en alguna de ellas el uso de sincronización por barreras?
+
+No, en ninguna de las implementaciones de las colectivas (`Bcast`, `Scatter`, `Gather`, `Reduce`, `Alltoall`) fue necesario usar una barrera explícita (`MPI_Barrier`) para garantizar la correctitud del algoritmo.
+
+La razón es que las propias comunicaciones punto a punto proporcionan la sincronización necesaria de forma implícita:
+
+*   En las **versiones bloqueantes**, un `MPI_Recv` no se completará hasta que el `MPI_Send` correspondiente se haya ejecutado en el otro proceso. Esta dependencia crea una sincronización natural entre el par de procesos que se comunican.
+*   En las **versiones no bloqueantes**, la llamada a `MPI_Wait` (o `MPI_Waitall`) al final de las operaciones sirve como punto de sincronización. El programa no continuará más allá del `MPI_Wait` hasta que la comunicación pendiente haya finalizado, asegurando que los datos estén listos para ser usados.
+
+Por lo tanto, la sincronización está inherentemente integrada en el flujo de las comunicaciones punto a punto que usamos para construir las colectivas. Añadir una barrera explícita habría sido redundante y solo habría añadido una sobrecarga de comunicación innecesaria.
