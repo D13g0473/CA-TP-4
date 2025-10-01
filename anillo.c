@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
     // Loop for n turns
     for (int turn = 0; turn < n; turn++) {
         if (rank == 0) {
-            // Process 0 sends first, then receives
+            // el proceso 0 envia primero, y entonces queda a la espera
             printf("El proceso %d envía '%c' al proceso %d en la vuelta %d\n", rank, msg, next, turn);
             fflush(stdout);
             MPI_Send(&msg, 1, MPI_CHAR, next, 0, MPI_COMM_WORLD);
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
             printf("El proceso %d recibió '%c' en la vuelta %d\n", rank, msg, turn);
             fflush(stdout);
         } else {
-            // Other processes receive first, then send
+            // los demás procesos reciben primero, y entonces envían
             MPI_Recv(&msg, 1, MPI_CHAR, prev, 0, MPI_COMM_WORLD, &status);
             printf("El proceso %d recibió '%c' en la vuelta %d\n", rank, msg, turn);
             fflush(stdout);
