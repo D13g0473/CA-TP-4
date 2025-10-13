@@ -1,0 +1,153 @@
+ANÁLISIS DEL EJERCICIO 5: JUEGO DE LA VIDA
+
+a) ¿Es posible encontrar una solución paralela?
+
+SÍ, es altamente paralelizable. El Juego de la Vida tiene las siguientes características que lo hacen ideal para paralelización:
+
+1. **Independencia local**: Cada célula depende solo de sus 8 vecinas inmediatas
+2. **Actualización simultánea**: Todas las células se actualizan al mismo tiempo basado en el estado actual
+3. **División natural del dominio**: La matriz se puede dividir en submatrices
+4. **Cálculos locales**: La mayoría del trabajo es computación local por célula
+
+DESAFÍOS PARA LA PARALELIZACIÓN:
+- Comunicación entre procesos para células en los bordes (ghost cells)
+- Sincronización entre generaciones
+- Balanceo de carga (idealmente grillas cuadradas o rectangulares)
+
+ESTRATEGIAS DE PARTICIONADO:
+1. **Por filas**: Cada proceso maneja un conjunto de filas completas
+2. **Por columnas**: Cada proceso maneja un conjunto de columnas completas
+3. **Por bloques 2D**: División en submatrices rectangulares (más eficiente)
+
+b) IMPLEMENTACIONES EN PSEUDOCÓDIGO
+
+IMPLEMENTACIÓN SECUENCIAL:
+
+función juego_vida_secuencial(N, num_generaciones):
+    // Inicializar grilla NxN
+    grilla = matriz[N][N]
+    nueva_grilla = matriz[N][N]
+
+    // Generar estado inicial aleatorio
+    para i de 0 a N-1:
+        para j de 0 a N-1:
+            grilla[i][j] = aleatorio(0,1)
+
+    // Ciclos de evolución
+    para generacion de 1 a num_generaciones:
+        // Calcular nueva generación
+        para i de 0 a N-1:
+            para j de 0 a N-1:
+                vecinos_vivos = contar_vecinos_vivos(grilla, i, j, N)
+                nueva_grilla[i][j] = aplicar_reglas(grilla[i][j], vecinos_vivos)
+
+        // Copiar nueva generación
+        grilla = nueva_grilla
+
+        // Opcional: imprimir grilla cada cierto número de generaciones
+
+función contar_vecinos_vivos(grilla, i, j, N):
+    contador = 0
+    para di de -1 a 1:
+        para dj de -1 a 1:
+            si di != 0 o dj != 0:
+                ni = (i + di + N) % N  // Condiciones de borde periódicas
+                nj = (j + dj + N) % N
+                contador += grilla[ni][nj]
+    retornar contador
+
+función aplicar_reglas(estado_actual, vecinos_vivos):
+    si estado_actual == 1:  // Viva
+        si vecinos_vivos == 2 o vecinos_vivos == 3:
+            retornar 1  // Sigue viva
+        sino:
+            retornar 0  // Muere
+    sino:  // Muerta
+        si vecinos_vivos == 3:
+            retornar 1  // Nace
+        sino:
+            retornar 0  // Sigue muerta
+
+IMPLEMENTACIÓN PARALELA MPI (PARTICIONADO POR FILAS):
+
+función juego_vida_paralelo(N, num_generaciones, num_procesos):
+    rank = MPI_Comm_rank()
+    size = MPI_Comm_size()
+
+    // Calcular filas por proceso
+    filas_por_proceso = N / size
+    filas_extra = N % size
+
+    // Cada proceso calcula sus filas locales
+    filas_locales = filas_por_proceso
+    si rank < filas_extra:
+        filas_locales += 1
+
+    // Offset para calcular filas globales
+    offset = rank * filas_por_proceso + min(rank, filas_extra)
+
+    // Inicializar grillas locales (con filas fantasma para bordes)
+    grilla_local = matriz[filas_locales + 2][N]  // +2 para filas fantasma
+    nueva_grilla_local = matriz[filas_locales + 2][N]
+
+    // Generar estado inicial (solo proceso 0 genera completo y distribuye)
+    si rank == 0:
+        grilla_completa = generar_aleatorio(N)
+        // Scatter por filas
+        MPI_Scatterv(grilla_completa, sendcounts, displs, grilla_local[1], ...)
+    sino:
+        MPI_Scatterv(..., grilla_local[1], ...)
+
+    // Ciclos de evolución
+    para generacion de 1 a num_generaciones:
+        // Intercambiar filas fantasma con procesos vecinos
+        intercambiar_filas_fantasma(grilla_local, rank, size, N, filas_locales)
+
+        // Calcular nueva generación para filas locales
+        para fila_local de 1 a filas_locales:  // Índices 1 a filas_locales (evitando fantasma)
+            para col de 0 a N-1:
+                fila_global = offset + fila_local - 1
+                vecinos = contar_vecinos_vivos_local(grilla_local, fila_local, col, N)
+                nueva_grilla_local[fila_local][col] = aplicar_reglas(grilla_local[fila_local][col], vecinos)
+
+        // Sincronizar: esperar que todos terminen
+        MPI_Barrier()
+
+        // Copiar nueva generación (sin filas fantasma)
+        para fila_local de 1 a filas_locales:
+            para col de 0 a N-1:
+                grilla_local[fila_local][col] = nueva_grilla_local[fila_local][col]
+
+        // Opcional: proceso 0 recolecta y muestra resultado cada ciertas generaciones
+
+    // Final: proceso 0 recolecta resultado final
+    si rank == 0:
+        MPI_Gatherv(grilla_local[1], ..., grilla_final, ...)
+
+función intercambiar_filas_fantasma(grilla_local, rank, size, N, filas_locales):
+    // Enviar fila superior al proceso anterior
+    si rank > 0:
+        MPI_Send(grilla_local[1], N, MPI_INT, rank-1, 0)
+        MPI_Recv(grilla_local[0], N, MPI_INT, rank-1, 0)
+
+    // Enviar fila inferior al proceso siguiente
+    si rank < size-1:
+        MPI_Send(grilla_local[filas_locales], N, MPI_INT, rank+1, 0)
+        MPI_Recv(grilla_local[filas_locales+1], N, MPI_INT, rank+1, 0)
+
+función contar_vecinos_vivos_local(grilla_local, fila_local, col, N):
+    contador = 0
+    para di de -1 a 1:
+        para dj de -1 a 1:
+            si di != 0 o dj != 0:
+                ni = fila_local + di
+                nj = (col + dj + N) % N  // Condición periódica en columnas
+                contador += grilla_local[ni][nj]
+    retornar contador
+
+CONSIDERACIONES PARA LA IMPLEMENTACIÓN REAL:
+1. **Condiciones de borde**: Se asumen periódicas (toroidal)
+2. **Balanceo de carga**: Para N divisible por número de procesos, distribución uniforme
+3. **Comunicación**: Solo filas fantasma se intercambian entre procesos adyacentes
+4. **Sincronización**: MPI_Barrier asegura que todos avancen a la siguiente generación juntos
+5. **Eficiencia**: Comunicación mínima, computación local máxima

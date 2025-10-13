@@ -1,0 +1,70 @@
+INSTRUCCIONES PARA EJECUTAR LOS PROGRAMAS MPI DE MULTIPLICACIÓN MATRIZ-VECTOR
+
+Este documento explica cómo compilar y ejecutar los programas implementados para el Ejercicio 4.
+
+ARCHIVOS:
+- multiplicacion_matriz_vector_a.c: Implementa la Parte a)
+- multiplicacion_matriz_vector_b.c: Implementa la Parte b)
+- anillo.c: Implementa el Ejercicio 3 (anillo)
+
+COMPILACIÓN:
+Para compilar cualquier programa MPI, use el comando:
+mpicc archivo.c -o ejecutable
+
+Ejemplos:
+mpicc multiplicacion_matriz_vector_a.c -o multiplicacion_a
+mpicc multiplicacion_matriz_vector_b.c -o multiplicacion_b
+mpicc anillo.c -o anillo
+
+EJECUCIÓN:
+
+1. PROGRAMA PARTE A (multiplicacion_matriz_vector_a.c):
+   - Descripción: Cada proceso maneja exactamente una fila de la matriz
+   - Requisito: Número de procesos debe ser igual al tamaño N de la matriz
+   - Comando: echo "N" | mpirun -np N ./multiplicacion_a
+
+   Ejemplo con datos del ejercicio (N=6):
+   echo "6" | mpirun -np 6 ./multiplicacion_a
+
+   Resultado esperado:
+   C[0] = 91
+   C[1] = 217
+   C[2] = 343
+   C[3] = 469
+   C[4] = 595
+   C[5] = 721
+
+2. PROGRAMA PARTE B (multiplicacion_matriz_vector_b.c):
+   - Descripción: Múltiples filas por proceso, maneja casos donde N > número de procesos
+   - Caso 1: N divisible por número de procesos
+   - Caso 2: N no divisible por número de procesos
+   - Comando: echo "N" | mpirun -np P ./multiplicacion_b  (donde P < N)
+
+   Ejemplos:
+   - Caso 1 (N=8, divisible por 4): echo "8" | mpirun -np 4 ./multiplicacion_b
+   - Caso 2 (N=7, no divisible por 4): echo "7" | mpirun -np 4 ./multiplicacion_b
+
+3. PROGRAMA ANILLO (anillo.c):
+   - Descripción: Circulación de mensaje en anillo lógico
+   - Comando: mpirun -np P ./anillo N  (donde N es número de vueltas)
+
+   Ejemplo: mpirun -np 4 ./anillo 2
+
+DATOS DE EJEMPLO:
+- Matriz A (6x6):
+  1  2  3  4  5  6
+  7  8  9  10 11 12
+  13 14 15 16 17 18
+  19 20 21 22 23 24
+  25 26 27 28 29 30
+  31 32 33 34 35 36
+
+- Vector B (6): [1, 2, 3, 4, 5, 6]
+
+- Resultado C (6): [91, 217, 343, 469, 595, 721]
+
+NOTAS:
+- Los programas usan datos de ejemplo para N=6, datos aleatorios para otros N
+- Asegúrese de tener MPI instalado y configurado
+- Para N > 6, los resultados serán diferentes ya que se usan datos aleatorios
+- Los programas son parametrizables: solicitan N por entrada estándar
